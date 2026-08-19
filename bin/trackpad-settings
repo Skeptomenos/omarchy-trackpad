@@ -1,0 +1,91 @@
+#!/bin/bash
+
+# Trackpad settings backing the Omarchy menu entries (Setup > Trackpad) and
+# the david.trackpad slider panel. Mac-like UX lives here (user config), not
+# in the omarchy-mac fork — see the omarchy-dev placement table.
+# Persists to ~/.config/hypr/trackpad-ui.lua (required from hyprland.lua)
+# and applies immediately via hyprctl reload.
+#
+# Usage:
+#   trackpad-settings get natural_scroll|scroll_factor|sensitivity|gestures|swipe_speed
+#   trackpad-settings toggle natural_scroll|gestures
+#   trackpad-settings set scroll_factor|sensitivity|swipe_speed <value>
+
+set -euo pipefail
+export LC_ALL=C
+
+CONF="$HOME/.config/hypr/trackpad-ui.lua"
+
+cur_natural() { hyprctl getoption input:touchpad:natural_scroll -j | jq -r 'if .bool then "on" else "off" end'; }
+cur_scroll() { printf '%.2f\n' "$(hyprctl getoption input:touchpad:scroll_factor -j | jq -r '.float')"; }
+cur_sens() { printf '%.2f\n' "$(hyprctl getoption input:sensitivity -j | jq -r '.float')"; }
+
+# Gesture state isn't queryable from hyprctl, so it round-trips through a
+# state line in the generated file. Defaults apply when the file is missing.
+cur_gestures() {
+  local line
+  line=$(grep -m1 '^-- state:' "$CONF" 2>/dev/null || true)
+  [[ $line =~ gestures=(on|off) ]] && echo "${BASH_REMATCH[1]}" || echo on
+}
+cur_swipe() {
+  local line
+  line=$(grep -m1 '^-- state:' "$CONF" 2>/dev/null || true)
+  [[ $line =~ swipe=(-?[0-9.]+) ]] && printf '%.2f\n' "${BASH_REMATCH[1]}" || echo 1.00
+}
+
+write_conf() {
+  local ns=$1 sf=$2 sens=$3 gestures=$4 swipe=$5 nslua=false
+  [[ $ns == "on" ]] && nslua=true
+  cat >"$CONF" <<EOF
+-- Managed by trackpad-settings (Omarchy menu: Setup > Trackpad).
+-- Manual edits will be overwritten; loaded after hypr/input.lua so these win.
+-- state: gestures=$gestures swipe=$swipe
+hl.config({
+  input = {
+    sensitivity = $sens,
+    touchpad = {
+      natural_scroll = $nslua,
+      scroll_factor = $sf,
+    },
+  },
+})
+EOF
+  if [[ $gestures == "on" ]]; then
+    cat >>"$CONF" <<EOF
+
+-- Mac-style four-finger gestures. scale sets how far fingers travel per
+-- workspace: higher is faster.
+hl.gesture({ fingers = 4, direction = "horizontal", action = "workspace", scale = $swipe })
+hl.gesture({ fingers = 4, direction = "up", action = "fullscreen" })
+hl.gesture({ fingers = 4, direction = "down", action = "special", workspace_name = "scratchpad" })
+EOF
+  fi
+  hyprctl reload >/dev/null
+}
+
+save() { write_conf "${NS:-$(cur_natural)}" "${SF:-$(cur_scroll)}" "${SENS:-$(cur_sens)}" "${GESTURES:-$(cur_gestures)}" "${SWIPE:-$(cur_swipe)}"; }
+
+case "${1:-}:${2:-}" in
+get:natural_scroll) cur_natural ;;
+get:scroll_factor) cur_scroll ;;
+get:sensitivity) cur_sens ;;
+get:gestures) cur_gestures ;;
+get:swipe_speed) cur_swipe ;;
+toggle:natural_scroll)
+  NS=$(cur_natural)
+  [[ $NS == "on" ]] && NS=off || NS=on
+  save
+  ;;
+toggle:gestures)
+  GESTURES=$(cur_gestures)
+  [[ $GESTURES == "on" ]] && GESTURES=off || GESTURES=on
+  save
+  ;;
+set:scroll_factor) SF=$(printf '%.2f' "$3") save ;;
+set:sensitivity) SENS=$(printf '%.2f' "$3") save ;;
+set:swipe_speed) SWIPE=$(printf '%.2f' "$3") save ;;
+*)
+  echo "usage: trackpad-settings get|toggle|set <key> [value]" >&2
+  exit 64
+  ;;
+esac
