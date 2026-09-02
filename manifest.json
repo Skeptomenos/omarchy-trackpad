@@ -3,7 +3,8 @@
   "id": "david.trackpad",
   "name": "Trackpad",
   "version": "1.0.0",
-  "author": "david",
+  "author": "David Helmus",
+  "license": "MIT",
   "description": "Draggable sliders for trackpad scroll speed, pointer speed, and natural scrolling. Summon with: omarchy-shell shell summon david.trackpad",
   "kinds": [
     "panel"
