@@ -12,7 +12,7 @@ workspace swipe like macOS Spaces, swipe up = fullscreen, swipe down =
 ## Requirements
 
 - Omarchy ≥ 4.0 (Quickshell shell, Lua Hyprland config)
-- `hyprctl`, `jq`
+- Bash, `hyprctl`, and `jq` (included with Omarchy)
 - A touchpad Hyprland can see (`omarchy hw touchpad`). On Apple Silicon this
   needs the `multi-touch` detection fix (omarchy-mac PR #184 /
   basecamp/omarchy PR #7488).
@@ -40,6 +40,11 @@ Then open the panel:
 omarchy-shell shell summon david.trackpad
 ```
 
+The plugin needs no root privileges, network access, background service, or
+external dependency beyond the commands listed above. It changes no existing
+configuration during installation. Adjusting a setting explicitly creates or
+regenerates `~/.config/hypr/trackpad-ui.lua`.
+
 Optional menu entries (Setup > Trackpad) for
 `~/.config/omarchy/extensions/omarchy-menu.jsonc`:
 
@@ -62,3 +67,24 @@ is regenerated on every change — keep manual input tweaks in
 Background and the Apple Silicon trackpad boot-race diagnosis:
 `docs/apple-silicon-trackpad.md` in
 [Skeptomenos/omarchy-mac](https://github.com/Skeptomenos/omarchy-mac).
+
+## Remove
+
+First remove this line from `~/.config/hypr/hyprland.lua`:
+
+```lua
+require("hypr.trackpad-ui")
+```
+
+Reload Hyprland, remove the plugin, and delete only its generated helper and
+settings files:
+
+```bash
+hyprctl reload
+omarchy plugin remove david.trackpad
+rm ~/.local/bin/trackpad-settings ~/.config/hypr/trackpad-ui.lua
+```
+
+If you added the optional menu entries or a desktop launcher, remove those
+separately. Manual input settings in `~/.config/hypr/input.lua` are never
+modified by this plugin.
